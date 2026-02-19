@@ -35,13 +35,6 @@ for u in table.users.values():
     print(f"  User: {u.name}")
     print(f"    Assigned Roles: {', '.join(u.roles) if u.roles else 'None'}")
 
-print("\n[Phase 3] Semantic Validation")
-sem_results = check_semantics(table)
-if sem_results:
-    for msg in sem_results:
-        print(msg)
-else:
-    print("No semantic issues detected")
 
 def print_ast_branch(node, indent="", last=True):
     branch = "└── " if last else "├── "
@@ -72,4 +65,10 @@ if syntax_errors:
 else:
     print("\nNo syntax errors detected")
 
-print("\nFrontend phase completed successfully")
+print("\n[Phase 3] Semantic Validation")
+sem_results = check_semantics(table)
+if sem_results:
+    for msg in sem_results:
+        print(msg)
+else:
+    print("No semantic issues detected")
