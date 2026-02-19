@@ -1,0 +1,63 @@
+role Admin {
+    permissions = [read, write, delete]
+}
+
+role Manager extends Admin {
+    permissions = [approve, review]
+}
+
+role Developer {
+    permissions = [read, commit, push]
+}
+
+role Tester extends Developer {
+    permissions = [test, report]
+}
+
+role Intern {
+    permissions = [read]
+}
+
+role HR {
+    permissions = [hire, fire, manage_payroll]
+}
+
+role TeamLead extends Developer {
+    permissions = [merge, assign_tasks]
+}
+
+user Anu {
+    roles = [Manager]
+}
+
+user Barbie {
+    roles = [Developer]
+}
+
+user Claire {
+    roles = [Tester]
+}
+
+user David {
+    roles = [Intern]
+}
+
+user Eva {
+    roles = [Manager, Tester]
+}
+
+user Frank {
+    roles = [HR]
+}
+
+user Grace {
+    roles = [TeamLead, Developer]
+}
+
+user Henry {
+    roles = [Intern, Tester]
+}
+
+user Isla {
+    roles = [Admin]
+}
