@@ -5,7 +5,6 @@ role Admin {
 role Manager extends Admin {
     permissions = [approve, review]
 }
-
 role Developer {
     permissions = [read, commit, push]
 }
@@ -13,7 +12,6 @@ role Developer {
 role Tester extends Developer {
     permissions = [test, report]
 }
-
 role Intern {
     permissions = [read]
 }

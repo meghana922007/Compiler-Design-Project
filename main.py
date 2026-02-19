@@ -1,34 +1,75 @@
+from frontend.lexer import lex
 from frontend.parser import parse_policy
 from frontend.semantic import check_semantics
 
+DSL_FILE = "dsl/policy.rbac"
+
+PRINT_TOKENS = False     
+PRINT_AST = True        
+
 print("*** RBAC POLICY DSL COMPILER ***\n")
 
-print("[Phase 1] Parsing")
-table = parse_policy("dsl/policy.rbac")
-print("DSL parsed successfully\n")
+tokens = lex(DSL_FILE)
+print("[Phase 1] Lexical Analysis")
+print(f"Tokens generated: {len(tokens)-1} (excluding EOF)\n")
 
-print("[Phase 2] Symbol Table Construction")
+if PRINT_TOKENS:
+    print("Tokens:")
+    for t in tokens[:-1]:
+        print(f"  {t}")
+    print()
+
+print("[Phase 2] Parsing & Symbol Table Construction")
+table, ast_nodes, syntax_errors = parse_policy(DSL_FILE)
 print(f"Roles Loaded: {len(table.roles)}")
 print(f"Users Loaded: {len(table.users)}\n")
 
 print("[Symbol Table] Roles:")
 for r in table.roles.values():
     print(f"  Role: {r.name}")
-    print(f"    Permissions: {', '.join(r.permissions)}")
+    print(f"    Permissions: {', '.join(r.permissions) if r.permissions else 'None'}")
     print(f"    Inherits: {', '.join(r.parents) if r.parents else 'None'}")
 
 print("\n[Symbol Table] Users:")
 for u in table.users.values():
     print(f"  User: {u.name}")
-    print(f"    Assigned Roles: {', '.join(u.roles)}")
-print()  
+    print(f"    Assigned Roles: {', '.join(u.roles) if u.roles else 'None'}")
 
-print("[Phase 3] Semantic Validation")
-results = check_semantics(table)
-if results:
-    for msg in results:
+print("\n[Phase 3] Semantic Validation")
+sem_results = check_semantics(table)
+if sem_results:
+    for msg in sem_results:
         print(msg)
 else:
     print("No semantic issues detected")
+
+def print_ast_branch(node, indent="", last=True):
+    branch = "└── " if last else "├── "
+    print(indent + branch + f"{node.type}: {node.name}")
+
+    if node.type == "Role":
+        if node.permissions:
+            print(indent + ("    " if last else "│   ") + f"Permissions: {', '.join(node.permissions)}")
+        if node.parents:
+            print(indent + ("    " if last else "│   ") + f"Inherits: {', '.join(node.parents)}")
+    elif node.type == "User":
+        if node.roles:
+            print(indent + ("    " if last else "│   ") + f"Assigned Roles: {', '.join(node.roles)}")
+
+    child_count = len(getattr(node, "children", []))
+    for idx, child in enumerate(getattr(node, "children", [])):
+        print_ast_branch(child, indent + ("    " if last else "│   "), idx == child_count - 1)
+
+if PRINT_AST:
+    print("\n[AST Tree]")
+    for idx, node in enumerate(ast_nodes):
+        print_ast_branch(node, "", idx == len(ast_nodes)-1)
+
+if syntax_errors:
+    print("\n[Syntax Errors]")
+    for e in syntax_errors:
+        print(e)
+else:
+    print("\nNo syntax errors detected")
 
 print("\nFrontend phase completed successfully")

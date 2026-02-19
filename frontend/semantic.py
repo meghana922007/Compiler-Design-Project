@@ -1,19 +1,17 @@
 def check_semantics(table):
     messages = []
 
-    # Check undefined parent roles
     for role in table.roles.values():
         for parent in role.parents:
             if parent not in table.roles:
-                messages.append(
-                    f"[WARNING] Role '{role.name}' inherits undefined role '{parent}'"
-                )
+                messages.append(f"[WARNING] Role '{role.name}' inherits undefined role '{parent}'")
 
-    # Check roles with no permissions
     for role in table.roles.values():
-        if len(role.permissions) == 0:
-            messages.append(
-                f"[INFO] Role '{role.name}' has no permissions assigned"
-            )
+        if not role.permissions:
+            messages.append(f"[INFO] Role '{role.name}' has no permissions assigned")
+
+    for user in table.users.values():
+        if not user.roles:
+            messages.append(f"[INFO] User '{user.name}' has no roles assigned")
 
     return messages
