@@ -16,7 +16,7 @@ class Token:
     def __init__(self, type_, value, line):
         self.type = type_
         self.value = value
-        self.line = line   # store line number
+        self.line = line   
 
     def __repr__(self):
         return f"{self.type}:{self.value} (line {self.line})"
@@ -30,8 +30,6 @@ def lex(file_path):
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-
-        # Add spaces around special symbols for splitting
         line = line.replace("{", " { ").replace("}", " } ") \
                    .replace("=", " = ").replace(",", " , ") \
                    .replace("[", " [ ").replace("]", " ] ")

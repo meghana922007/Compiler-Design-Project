@@ -125,7 +125,6 @@ def parse_policy(file_path):
             syntax_errors.append(f"[SYNTAX ERROR] Line {tok.line}: Unexpected token '{tok.value}'")
             advance()
 
-    # Save syntax errors to a file
     if syntax_errors:
         with open("syntax_errors.txt", "w") as f:
             for err in syntax_errors:
