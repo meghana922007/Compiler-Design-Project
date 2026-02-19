@@ -4,7 +4,7 @@ from frontend.semantic import check_semantics
 
 DSL_FILE = "dsl/policy.rbac"
 
-PRINT_TOKENS = False     
+PRINT_TOKENS = False 
 PRINT_AST = True        
 
 print("*** RBAC POLICY DSL COMPILER ***\n")
