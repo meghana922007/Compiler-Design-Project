@@ -1,11 +1,9 @@
-# core/model.py
-
 class Role:
     def __init__(self, name):
         self.name = name
         self.permissions = set()
         self.parents = []
-        self.children = []  # for AST tree
+        self.children = [] 
 
 class User:
     def __init__(self, name):
