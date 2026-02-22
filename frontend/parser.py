@@ -1,7 +1,13 @@
 from core.symbol_table import SymbolTable
-from core.model import Role, User, ASTNode
-from frontend.lexer import lex, TOKEN_ROLE, TOKEN_USER, TOKEN_IDENTIFIER, TOKEN_EXTENDS, TOKEN_LBRACE, TOKEN_RBRACE, TOKEN_EQUALS, TOKEN_PERMISSIONS, TOKEN_ROLES, TOKEN_LBRACKET, TOKEN_RBRACKET, TOKEN_COMMA, TOKEN_EOF
-
+from core.model import ASTNode
+from frontend.lexer import (
+    lex,
+    TOKEN_ROLE, TOKEN_USER, TOKEN_IDENTIFIER,
+    TOKEN_EXTENDS, TOKEN_LBRACE, TOKEN_RBRACE,
+    TOKEN_EQUALS, TOKEN_PERMISSIONS, TOKEN_ROLES,
+    TOKEN_LBRACKET, TOKEN_RBRACKET,
+    TOKEN_EOF
+)
 def parse_policy(file_path):
     tokens = lex(file_path)
     table = SymbolTable()
@@ -12,122 +18,236 @@ def parse_policy(file_path):
     n = len(tokens)
 
     def current():
-        return tokens[i] if i < n else None
+        if i < n:
+            return tokens[i]
+        return tokens[-1]
 
     def advance():
         nonlocal i
-        i += 1
+        if i < n:
+            i += 1
         return current()
+
+    def add_error(message):
+        if message not in syntax_errors:
+            syntax_errors.append(message)
+
+    def expect(token_type, message, line):
+        if current().type != token_type:
+            add_error(f"[SYNTAX ERROR] Line {line}: {message}")
+            return False
+        return True
 
     while i < n:
         tok = current()
+
         if tok.type == TOKEN_EOF:
             break
 
         if tok.type == TOKEN_ROLE:
-            try:
-                advance()
-                role_name = current().value
-                role = Role(role_name)
-                node = ASTNode("Role", role_name)
-                advance()
 
-                if current().type == TOKEN_EXTENDS:
+            role_line = tok.line
+            advance()
+
+            if not expect(TOKEN_IDENTIFIER, "Expected role name", role_line):
+                advance()
+                continue
+
+            role_name = current().value
+            advance()
+
+            table.add_role(role_name, role_line)
+            role_obj = table.get_role(role_name)
+            node = ASTNode("Role", role_name)
+
+            if current().type == TOKEN_EXTENDS:
+                advance()
+                if expect(TOKEN_IDENTIFIER,
+                          f"Role '{role_name}' missing parent role name",
+                          role_line):
+                    parent = current().value
+                    role_obj.add_parent(parent)
+                    node.parents.append(parent)
                     advance()
-                    parent_name = current().value
-                    role.parents.append(parent_name)
-                    node.parents.append(parent_name)
+
+            if not expect(TOKEN_LBRACE,
+                          f"Role '{role_name}' missing '{{'",
+                          role_line):
+                while current().type not in [TOKEN_LBRACE, TOKEN_EOF]:
                     advance()
 
-                if current().type != TOKEN_LBRACE:
-                    syntax_errors.append(f"[SYNTAX ERROR] Line {tok.line}: Role '{role_name}' missing '{{'")
-                    while current().type not in [TOKEN_LBRACE, TOKEN_EOF]:
-                        advance()
+            if current().type == TOKEN_LBRACE:
                 advance()
 
-                while current().type != TOKEN_RBRACE and current().type != TOKEN_EOF:
-                    if current().type == TOKEN_PERMISSIONS:
+            missing_block_close = False
+
+            while current().type not in [TOKEN_RBRACE, TOKEN_EOF]:
+
+                if current().type in [TOKEN_ROLE, TOKEN_USER]:
+                    add_error(
+                        f"[SYNTAX ERROR] Line {role_line}: "
+                        f"Role '{role_name}' missing '}}'"
+                    )
+                    missing_block_close = True
+                    break
+
+                if current().type == TOKEN_PERMISSIONS:
+
+                    perm_line = current().line
+                    advance()
+
+                    if not expect(TOKEN_EQUALS,
+                                  f"Role '{role_name}' permissions missing '='",
+                                  perm_line):
                         advance()
-                        if current().type != TOKEN_EQUALS:
-                            syntax_errors.append(f"[SYNTAX ERROR] Line {current().line}: Role '{role_name}' permissions missing '='")
-                        else:
-                            advance()
-                        if current().type != TOKEN_LBRACKET:
-                            syntax_errors.append(f"[SYNTAX ERROR] Line {current().line}: Role '{role_name}' permissions missing '['")
-                        else:
-                            advance()
-                        perms = []
-                        while current().type not in [TOKEN_RBRACKET, TOKEN_EOF]:
-                            if current().type == TOKEN_IDENTIFIER:
-                                perms.append(current().value)
-                            advance()
-                        role.permissions.update(perms)
-                        node.permissions.extend(perms)
-                        if current().type == TOKEN_RBRACKET:
-                            advance()
                     else:
-                        syntax_errors.append(f"[SYNTAX ERROR] Line {current().line}: Role '{role_name}' unexpected token '{current().value}'")
                         advance()
-                if current().type == TOKEN_RBRACE:
+
+                    if not expect(TOKEN_LBRACKET,
+                                  f"Role '{role_name}' permissions missing '['",
+                                  perm_line):
+                        advance()
+                    else:
+                        advance()
+
+                    found_rbracket = False
+
+                    while current().type not in [TOKEN_EOF]:
+
+                        if current().type == TOKEN_RBRACKET:
+                            found_rbracket = True
+                            break
+
+                        if current().type in [TOKEN_ROLE, TOKEN_USER]:
+                            break
+
+                        if current().type == TOKEN_IDENTIFIER:
+                            perm = current().value
+                            role_obj.add_permission(perm)
+                            node.permissions.append(perm)
+
+                        advance()
+
+                    if found_rbracket:
+                        advance()
+                    else:
+                        add_error(
+                            f"[SYNTAX ERROR] Line {perm_line}: "
+                            f"Role '{role_name}' missing ']'"
+                        )
+
+                else:
                     advance()
-                table.add_role(role)
-                ast_nodes.append(node)
-            except Exception as e:
-                syntax_errors.append(f"[FATAL ERROR] Line {tok.line}: Parsing Role '{role_name}': {e}")
+
+            if current().type == TOKEN_RBRACE:
+                advance()
+            else:
+                add_error(
+                    f"[SYNTAX ERROR] Line {role_line}: "
+                    f"Role '{role_name}' missing '}}'"
+                )
+
+            ast_nodes.append(node)
             continue
 
         elif tok.type == TOKEN_USER:
-            try:
-                advance()
-                user_name = current().value
-                user = User(user_name)
-                node = ASTNode("User", user_name)
-                advance()
 
-                if current().type != TOKEN_LBRACE:
-                    syntax_errors.append(f"[SYNTAX ERROR] Line {tok.line}: User '{user_name}' missing '{{'")
-                    while current().type not in [TOKEN_LBRACE, TOKEN_EOF]:
-                        advance()
-                advance()
+            user_line = tok.line
+            advance()
 
-                while current().type != TOKEN_RBRACE and current().type != TOKEN_EOF:
-                    if current().type == TOKEN_ROLES:
-                        advance()
-                        if current().type != TOKEN_EQUALS:
-                            syntax_errors.append(f"[SYNTAX ERROR] Line {current().line}: User '{user_name}' roles missing '='")
-                        else:
-                            advance()
-                        if current().type != TOKEN_LBRACKET:
-                            syntax_errors.append(f"[SYNTAX ERROR] Line {current().line}: User '{user_name}' roles missing '['")
-                        else:
-                            advance()
-                        roles_list = []
-                        while current().type not in [TOKEN_RBRACKET, TOKEN_EOF]:
-                            if current().type == TOKEN_IDENTIFIER:
-                                roles_list.append(current().value)
-                            advance()
-                        user.roles.extend(roles_list)
-                        node.roles.extend(roles_list)
-                        if current().type == TOKEN_RBRACKET:
-                            advance()
-                    else:
-                        syntax_errors.append(f"[SYNTAX ERROR] Line {current().line}: User '{user_name}' unexpected token '{current().value}'")
-                        advance()
-                if current().type == TOKEN_RBRACE:
+            if not expect(TOKEN_IDENTIFIER, "Expected user name", user_line):
+                advance()
+                continue
+
+            user_name = current().value
+            advance()
+
+            table.add_user(user_name, user_line)
+            user_obj = table.get_user(user_name)
+            node = ASTNode("User", user_name)
+
+            if not expect(TOKEN_LBRACE,
+                          f"User '{user_name}' missing '{{'",
+                          user_line):
+                while current().type not in [TOKEN_LBRACE, TOKEN_EOF]:
                     advance()
-                table.add_user(user)
-                ast_nodes.append(node)
-            except Exception as e:
-                syntax_errors.append(f"[FATAL ERROR] Line {tok.line}: Parsing User '{user_name}': {e}")
+
+            if current().type == TOKEN_LBRACE:
+                advance()
+
+            while current().type not in [TOKEN_RBRACE, TOKEN_EOF]:
+
+                if current().type in [TOKEN_ROLE, TOKEN_USER]:
+                    break
+
+                if current().type == TOKEN_ROLES:
+
+                    roles_line = current().line
+                    advance()
+
+                    if not expect(TOKEN_EQUALS,
+                                  f"User '{user_name}' roles missing '='",
+                                  roles_line):
+                        advance()
+                    else:
+                        advance()
+
+                    if not expect(TOKEN_LBRACKET,
+                                  f"User '{user_name}' roles missing '['",
+                                  roles_line):
+                        advance()
+                    else:
+                        advance()
+
+                    found_rbracket = False
+
+                    while current().type not in [TOKEN_EOF]:
+
+                        if current().type == TOKEN_RBRACKET:
+                            found_rbracket = True
+                            break
+
+                        if current().type in [TOKEN_ROLE, TOKEN_USER]:
+                            break
+
+                        if current().type == TOKEN_IDENTIFIER:
+                            assigned = current().value
+                            user_obj.assign_role(assigned)
+                            node.roles.append(assigned)
+
+                        advance()
+
+                    if found_rbracket:
+                        advance()
+                    else:
+                        add_error(
+                            f"[SYNTAX ERROR] Line {roles_line}: "
+                            f"User '{user_name}' missing ']'"
+                        )
+
+                else:
+                    advance()
+
+            if current().type == TOKEN_RBRACE:
+                advance()
+            else:
+                add_error(
+                    f"[SYNTAX ERROR] Line {user_line}: "
+                    f"User '{user_name}' missing '}}'"
+                )
+
+            ast_nodes.append(node)
             continue
 
         else:
-            syntax_errors.append(f"[SYNTAX ERROR] Line {tok.line}: Unexpected token '{tok.value}'")
+            add_error(
+                f"[SYNTAX ERROR] Line {tok.line}: "
+                f"Unexpected token '{tok.value}'"
+            )
             advance()
 
-    if syntax_errors:
-        with open("syntax_errors.txt", "w") as f:
-            for err in syntax_errors:
-                f.write(err + "\n")
+    with open("syntax_errors.txt", "w") as f:
+        for err in syntax_errors:
+            f.write(err + "\n")
 
     return table, ast_nodes, syntax_errors
